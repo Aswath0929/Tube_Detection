@@ -1,0 +1,6 @@
+path: yolo_kp_dataset
+train: images/train
+val: images/val
+nc: 1
+names: ['tube_lid']
+kpt_shape: [2, 3]
