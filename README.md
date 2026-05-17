@@ -1,51 +1,69 @@
 # Tube Lid Detector
 
-This project detects tube lids and estimates their tab angles using a YOLOv8 keypoint model.
+Detect tube lids and estimate their tab angles with a YOLOv8 keypoint model.
 
-Flow-by-flow breakdown (techniques + data flow):
+## Overview
 
-1. Data + annotations
-	- Input images are 640x480 RGB.
-	- Labels in [data/annotations.csv](data/annotations.csv) include bounding boxes, lid centers, and tab angles in degrees.
+The system uses a two-stage approach:
 
-2. Detection dataset preparation ([src/prepare_dataset.py](src/prepare_dataset.py))
-	- Convert CSV annotations into YOLO detection labels (normalized bbox format).
-	- Split 80/20 by image with seed 42 to avoid label leakage.
-	- Write [yolo_dataset/dataset.yaml](yolo_dataset/dataset.yaml) for training.
+1. Train a YOLOv8 detector to localize lids with bounding boxes.
+2. Train a YOLOv8 pose model to predict two keypoints per lid (center and tab tip).
 
-3. Detection model training ([src/train.py](src/train.py))
-	- Train a YOLOv8 detector to localize lids (box-only).
-	- Outputs saved under the runs directory.
+The tab angle is computed from the predicted keypoints:
 
-4. Keypoint dataset preparation ([src/prepare_kp_dataset.py](src/prepare_kp_dataset.py))
-	- Compute a tab-tip keypoint from the center and angle labels.
-	- Create YOLO keypoint labels with two keypoints: center and tab tip.
-	- Split 80/20 by image with seed 42.
-	- Write [yolo_kp_dataset/dataset.yaml](yolo_kp_dataset/dataset.yaml) for keypoint training.
+$$
+	heta = \mathrm{atan2}(-(y_{tab}-y_{center}),\ x_{tab}-x_{center})
+$$
 
-5. Keypoint model training ([src/train_kp.py](src/train_kp.py))
-	- Train a YOLOv8 pose model to predict the two keypoints per lid.
-	- The model learns geometry directly instead of relying on classical CV.
+## Data and Annotations
 
-6. Inference (prediction) ([src/detector.py](src/detector.py))
-	- Run the keypoint model to get center and tab tip per detection.
-	- Compute angle with $\theta = \mathrm{atan2}(-(y_{tab}-y_{center}), x_{tab}-x_{center})$.
-	- Save outputs to [outputs/results/predictions.csv](outputs/results/predictions.csv).
+- Input images are 640x480 RGB.
+- Labels in [data/annotations.csv](data/annotations.csv) include bounding boxes, lid centers, and tab angles in degrees.
 
-7. Evaluation ([src/evaluate.py](src/evaluate.py))
-	- Match predictions to ground truth per image using the Hungarian algorithm.
-	- Apply a distance threshold to determine TP/FP/FN.
-	- Report precision/recall/F1 and mean angular error, optionally saving matches/metrics.
+## Project Structure
 
-Project structure overview:
 - [data/](data/) raw images and CSV annotations
-- [yolo_dataset/](yolo_dataset/) detection dataset (YOLO format)
-- [yolo_kp_dataset/](yolo_kp_dataset/) keypoint dataset (YOLO pose format)
-- [src/](src/) scripts for data prep, training, inference, evaluation, and debug
-- [runs/](runs/) training outputs and weights
+- [yolo_dataset/](yolo_dataset/) detection dataset in YOLO format
+- [yolo_kp_dataset/](yolo_kp_dataset/) keypoint dataset in YOLO pose format
+- [src/](src/) data prep, training, inference, evaluation, and debug scripts
+- [runs/](runs/) training outputs and checkpoints
 - [outputs/](outputs/) predictions and evaluation artifacts
+- [labels/](labels/) generated label files for train/val/test splits
 
-Quick steps:
+## Scripts and Tasks
+
+1. Detection dataset preparation: [src/prepare_dataset.py](src/prepare_dataset.py)
+   - Converts CSV annotations into YOLO detection labels (normalized bbox format).
+   - Splits data 80/20 by image with seed 42.
+   - Writes [yolo_dataset/dataset.yaml](yolo_dataset/dataset.yaml).
+
+2. Detection model training: [src/train.py](src/train.py)
+   - Trains a YOLOv8 detector to localize lids (bbox only).
+   - Outputs saved under [runs/](runs/).
+
+3. Keypoint dataset preparation: [src/prepare_kp_dataset.py](src/prepare_kp_dataset.py)
+   - Computes a tab-tip keypoint from center and angle labels.
+   - Creates YOLO keypoint labels with two keypoints: center and tab tip.
+   - Splits data 80/20 by image with seed 42.
+   - Writes [yolo_kp_dataset/dataset.yaml](yolo_kp_dataset/dataset.yaml).
+
+4. Keypoint model training: [src/train_kp.py](src/train_kp.py)
+   - Trains a YOLOv8 pose model to predict the two keypoints per lid.
+
+5. Inference: [src/detector.py](src/detector.py)
+   - Runs the keypoint model to get center and tab tip per detection.
+   - Computes the tab angle from the keypoints.
+   - Writes [outputs/results/predictions.csv](outputs/results/predictions.csv).
+
+6. Evaluation: [src/evaluate.py](src/evaluate.py)
+   - Matches predictions to ground truth with the Hungarian algorithm.
+   - Applies a distance threshold to determine TP/FP/FN.
+   - Reports precision, recall, F1, and mean angular error.
+
+7. Debug utilities: [src/debug_*.py](src/)
+   - Visual checks for angles, crops, thresholds, and classical CV behavior.
+
+## Quick Start
 
 1. Prepare detection dataset
 
@@ -53,7 +71,7 @@ Quick steps:
 python src/prepare_dataset.py
 ```
 
-2. Train YOLOv8 detector (requires `yolov8n.pt` checkpoint)
+2. Train YOLOv8 detector (requires [yolov8n.pt](yolov8n.pt))
 
 ```bash
 python src/train.py
@@ -65,22 +83,24 @@ python src/train.py
 python src/prepare_kp_dataset.py
 ```
 
-4. Train YOLOv8 keypoint model (requires `yolov8n-pose.pt` checkpoint)
+4. Train YOLOv8 keypoint model (requires [yolov8n-pose.pt](yolov8n-pose.pt))
 
 ```bash
 python src/train_kp.py
 ```
 
-5. Run detector on images
+5. Run inference on images
 
 ```bash
 python src/detector.py --images-dir data/images --output-csv outputs/results/predictions.csv
 ```
 
-6. Evaluate
+6. Evaluate predictions
 
 ```bash
 python src/evaluate.py --gt data/annotations.csv --pred outputs/results/predictions.csv
 ```
 
-Dependencies: see `requirements.txt`.
+## Dependencies
+
+Install dependencies from [requirements.txt](requirements.txt).

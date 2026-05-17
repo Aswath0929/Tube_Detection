@@ -5,7 +5,7 @@ def main():
     model = YOLO('yolov8n-pose.pt')
     model.train(
         data='yolo_kp_dataset/dataset.yaml',
-        epochs=200,
+        epochs=100,
         imgsz=640,
         batch=8,
         project='runs/pose/detect',

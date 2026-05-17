@@ -1,10 +1,11 @@
 from pathlib import Path
+import argparse
 import shutil
 import random
 import pandas as pd
 
 
-def main():
+def main(seed=None):
     root = Path(__file__).resolve().parents[1]
     data_dir = root / 'data'
     images_dir = data_dir / 'images'
@@ -22,15 +23,27 @@ def main():
     groups = df.groupby('image')
     images = sorted(groups.groups.keys())
 
-    random.seed(42)
+    if seed is None:
+        random.seed()
+    else:
+        random.seed(seed)
     random.shuffle(images)
     n = len(images)
-    n_train = int(n * 0.8)
+    n_train = int(n * 0.6)
+    n_val = int(n * 0.2)
     train_images = set(images[:n_train])
-    val_images = set(images[n_train:])
+    val_images = set(images[n_train:n_train + n_val])
+    test_images = set(images[n_train + n_val:])
 
     # create dirs
-    for p in [img_out / 'train', img_out / 'val', lbl_out / 'train', lbl_out / 'val']:
+    for p in [
+        img_out / 'train',
+        img_out / 'val',
+        img_out / 'test',
+        lbl_out / 'train',
+        lbl_out / 'val',
+        lbl_out / 'test',
+    ]:
         p.mkdir(parents=True, exist_ok=True)
 
     total_ann = 0
@@ -58,24 +71,33 @@ def main():
     for img in images:
         if img in train_images:
             write_image_and_labels(img, 'train')
-        else:
+        elif img in val_images:
             write_image_and_labels(img, 'val')
+        else:
+            write_image_and_labels(img, 'test')
 
     # write dataset.yaml
     yaml_text = (
         "path: yolo_dataset\n"
         "train: images/train\n"
         "val: images/val\n"
+        "test: images/test\n"
         "nc: 1\n"
         "names: ['tube_lid']\n"
     )
     (out_root / 'dataset.yaml').write_text(yaml_text)
 
+    if seed is not None:
+        print(f"Seed: {seed}")
     print(f"Total images: {n}")
     print(f"Train images: {len(train_images)}")
     print(f"Val images: {len(val_images)}")
+    print(f"Test images: {len(test_images)}")
     print(f"Total annotations: {total_ann}")
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--seed', type=int, default=None, help='random seed for train/val split (omit for random each run)')
+    args = parser.parse_args()
+    main(seed=args.seed)

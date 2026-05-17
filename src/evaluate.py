@@ -12,9 +12,21 @@ def angular_error(a, b):
     return min(d, 360 - d)
 
 
-def evaluate(gt_path, pred_path, dist_thresh=20.0, matches_out=None, metrics_out=None):
+def _load_image_set(images_dir):
+    if images_dir is None:
+        return None
+    image_paths = Path(images_dir).glob('*')
+    return {p.name for p in image_paths if p.suffix.lower() in ['.png', '.jpg', '.jpeg']}
+
+
+def evaluate(gt_path, pred_path, dist_thresh=20.0, matches_out=None, metrics_out=None, images_dir=None):
     gt = pd.read_csv(gt_path)
     preds = pd.read_csv(pred_path)
+
+    image_set = _load_image_set(images_dir)
+    if image_set is not None:
+        gt = gt[gt['image'].isin(image_set)]
+        preds = preds[preds['image'].isin(image_set)]
 
     images = sorted(set(gt['image'].unique()).union(set(preds['image'].unique())))
 
@@ -116,9 +128,17 @@ if __name__ == '__main__':
     parser.add_argument('--gt', required=True, help='ground truth CSV (data/annotations.csv)')
     parser.add_argument('--pred', required=True, help='predictions CSV (outputs/results/predictions.csv)')
     parser.add_argument('--distance-threshold', type=float, default=20.0)
+    parser.add_argument('--images-dir', help='limit evaluation to images in this directory (e.g., yolo_dataset/images/val)')
     parser.add_argument('--matches-out', default='outputs/results/matches.csv')
     parser.add_argument('--metrics-out', default='outputs/results/metrics.json')
     args = parser.parse_args()
 
     Path(args.matches_out).parent.mkdir(parents=True, exist_ok=True)
-    evaluate(args.gt, args.pred, dist_thresh=args.distance_threshold, matches_out=args.matches_out, metrics_out=args.metrics_out)
+    evaluate(
+        args.gt,
+        args.pred,
+        dist_thresh=args.distance_threshold,
+        matches_out=args.matches_out,
+        metrics_out=args.metrics_out,
+        images_dir=args.images_dir,
+    )

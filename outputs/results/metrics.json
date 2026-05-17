@@ -2,8 +2,8 @@
   "precision": 1.0,
   "recall": 1.0,
   "f1": 1.0,
-  "mean_angular_error": 4.83667570945595,
-  "TP": 371,
+  "mean_angular_error": 4.591447138538867,
+  "TP": 74,
   "FP": 0,
   "FN": 0
 }
